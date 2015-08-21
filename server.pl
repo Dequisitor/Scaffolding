@@ -10,6 +10,29 @@ use Socket;
 my $port = 3000;
 my $protocol = getprotobyname("tcp");
 
+#extract request body from socket
+#main problem is that there is no terminating charachter at the end of the last line, and the read functions just wait
+#going to read content length, and after the header we will read a precise lenght, not whole lines
+sub getRequestBody{
+	my $handle = $_[0];
+	my $contentLength = 0;
+
+	while (<$handle>) {
+		if (length($_) > 15 and substr($_, 0, 14) eq "Content-Length") {
+			($contentLength = substr($_, 15)) =~ s/\s//;
+		}
+
+		if ($_ eq "\r\n") {
+			last;
+		}
+	}
+
+	my $reqBody;
+	read($handle, $reqBody, $contentLength, 0);
+
+	return $reqBody;
+}
+
 #check subdirectories
 print "routes: \n";
 my %servers;
@@ -61,13 +84,15 @@ while ($clientAddr = accept($client, SOCK)) {
     $addr = inet_ntoa($addr);
     print "\n---------------------------------\nConnection accepted from $addr:$port\n";
     my @request = split(" ", scalar <$client>);
+	my $requestBody = getRequestBody($client);
     my $path = $request[1];
     print "request recieved: @request\n";
-
+	print "request body: $requestBody\n";
     if (@request == 0) {
         next;
     }
 
+	#default request a.k.a. no-route should be 404 (filter strangers/intruders)
     if ($path eq "/") {
         print color("green");
         print "200 Request served without error\n";
@@ -78,8 +103,10 @@ while ($clientAddr = accept($client, SOCK)) {
 
     my @path = split("/", $path);
     my $moduleName = $path[1];
+	#check for module existance
     if (exists($servers{$moduleName})) {
 
+		#is module already loaded?
         if (!exists $INC{$servers{$moduleName}}) {
             eval {
                 require $servers{$moduleName};
@@ -92,9 +119,10 @@ while ($clientAddr = accept($client, SOCK)) {
             };
         }
 
+		#handle request
         if (exists $INC{$servers{$moduleName}}) {
-            (my $innerPath = $request[1]) =~ s/\/$moduleName//;
-            my $return = $moduleName->handleRequest($client, $request[0], $innerPath);
+            (my $innerPath = $request[1]) =~ s/\/$moduleName//; #delete module name from request path
+            my $return = $moduleName->handleRequest($client, $request[0], $innerPath, $requestBody);
 
             if ($return eq "OK") { 
                 print color("green");
