@@ -36,29 +36,37 @@ sub getRequestBody{
 #check subdirectories
 print "routes: \n";
 my %servers;
-my $ls = `ls -d */`;
-my @dirs = split(" ", $ls);
+my $dirls = `ls -d */`;
+my @dirs = split(" ", $dirls);
 foreach my $dir (@dirs) {
-    my $fileName = $dir . "server.pm";
-    if (-e ($fileName) and -s $fileName > 10) { #package xxx -> 11 length
-        my ($fileHandle, $packageName, @line, $line);
-        open($fileHandle, "<". $fileName);
-        $line = <$fileHandle>;
-        @line = split(" ", $line);
-        if ($line[0] eq "package") {
-            ($packageName = $line[1]) =~ s/;$//;
-            $servers{$packageName} = $fileName;
-            print "server: ";
-            print color("yellow");
-            print "/$packageName";
-            print color("reset");
-            print " at " ;
-            print color("yellow");
-            print "$fileName\n";
-            print color("reset");
-        }
-        close $fileHandle;
-    }
+	my $filels = `ls $dir/*.pm`;
+	my @files = split(" ", $filels);
+	foreach my $file (@files) {
+		my $fileName = $file;
+		if (-e ($fileName) and -s $fileName > 10) { #package xxx -> 11 length
+			my ($fileHandle, $packageName, @line, $line);
+			open($fileHandle, "<$fileName");
+			$line = <$fileHandle>;
+			close($fileHandle);
+			my $fileData = do {
+				local $/ = undef;
+				open(my $fh, "<$fileName");
+				<$fh>;
+			};
+			if ($line =~ /package\ \S+?;/ and $fileData =~ /sub\ init/ and $fileData =~ /sub\ handleRequest/) {
+				($packageName = $line) =~ s/package\ (\S+?);\s*$/$1/g;
+				$servers{$packageName} = $fileName;
+				print "server: ";
+				print color("yellow");
+				print "/$packageName";
+				print color("reset");
+				print " at " ;
+				print color("yellow");
+				print "$fileName\n";
+				print color("reset");
+			}
+		}
+	}
 }
 print "\n";
 
