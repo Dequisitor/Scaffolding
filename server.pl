@@ -8,33 +8,51 @@ use Term::ANSIColor;
 use Socket;
 
 my $port = 3000;
-my $protocol = getprotobyname("tcp");
+my $protocol = (getprotobyname("tcp"))[2];
 
 #extract request body from socket
 #main problem is that there is no terminating charachter at the end of the last line, and the read functions just wait
-#going to read content length, and after the header we will read a precise lenght, not whole lines
+#going to read content length, and after the header we will read a precise length, not whole lines
 sub getRequestBody{
 	my $handle = $_[0];
 	my $contentLength = 0;
+	my $reqBody = '';
 
-	while (<$handle>) {
-		if (length($_) > 15 and substr($_, 0, 14) eq "Content-Length") {
-			($contentLength = substr($_, 15)) =~ s/\s//;
+	my $line;
+	while (!eof($handle)) {
+		defined ($line = <$handle>) or die "readline error $!\n";
+
+		if (length($line) > 15 and substr($line, 0, 14) eq "Content-Length") {
+			($contentLength = substr($line, 15)) =~ s/\s//;
 		}
 
-		if ($_ eq "\r\n") {
+		if ($line eq "\r\n") {
 			last;
 		}
 	}
 
-	my $reqBody;
-	read($handle, $reqBody, $contentLength, 0);
+	read($handle, $reqBody, $contentLength, 0) if $contentLength>0;
 
 	return $reqBody;
 }
 
+sub Log{
+	my $str = $_[0];
+	my $color = "reset";
+	if (scalar(@_) > 1) {
+		$color = $_[1];
+	}
+	my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
+	my $timestamp = sprintf("%02d-%02d-%04d %02d:%02d:%02d", $mday, $mon+1, $year+1900, $hour, $min, $sec);
+
+	print color("yellow");
+	print "[$timestamp]: ";
+	print color($color);
+	print "$str\n"
+}
+
 #check subdirectories
-print "routes: \n";
+Log("routes: \n");
 my %servers;
 my $dirls = `ls -d */`;
 my @dirs = split(" ", $dirls);
@@ -83,31 +101,32 @@ bind(SOCK, sockaddr_in($port, INADDR_ANY))
 listen(SOCK, SOMAXCONN)
 	or die "couldn't listen to port $port: $!";
 
-print "server ready, listening on port $port\n";
+Log("server ready, listening on port $port\n");
 
 my $client;
 my $clientAddr;
 while ($clientAddr = accept($client, SOCK)) {
 	my ($port, $addr) = sockaddr_in($clientAddr);
 	$addr = inet_ntoa($addr);
-	print "\n---------------------------------\nConnection accepted from $addr:$port\n";
-	my @request = split(" ", scalar <$client>);
+	Log("Connection accepted from $addr:$port", "cyan");
+
+	my $reqSize = $client;
+	my $requestStr = <$client>;
+	next if !defined $requestStr;
+
+	my @request = split(" ", $requestStr);
 	my $requestBody = getRequestBody($client);
 	my $path = $request[1];
-	print "request recieved: @request\n";
-	print "request body: $requestBody\n";
-	if (@request == 0) {
-		next;
-	}
+	Log("request recieved: @request");
+	Log("request body: $requestBody");
+	next if @request == 1;
 
 	#default request a.k.a. no-route, should be 404 (filter strangers/intruders)
 	if ($path eq "/") {
-		print color("green");
-		print "200 Request served without error\n";
-		print color("reset");
+		Log("200 Request served without error", "green");
 		print $client "HTTP/1.1 404 RESOURCE NOT FOUND\r\n\r\n<html><body><h1>404 page not found</h1></body></html>\r\n";
 		next;
-	} 
+	}
 
 	my @path = split("/", $path);
 	my $moduleName = $path[1];
@@ -122,7 +141,7 @@ while ($clientAddr = accept($client, SOCK)) {
 				$moduleName->init();
 				1;
 			} or do {
-				print "unable to import module: $@\n";
+				Log("unable to import module: $@");
 				print $client "HTTP/1.1 404 ERROR\r\n\r\n<h1>UNABLE TO LOAD MODULE $moduleName</h1><h2>$@</h2>";
 			};
 		}
@@ -130,33 +149,31 @@ while ($clientAddr = accept($client, SOCK)) {
 		#handle request
 		if (exists $INC{$servers{$moduleName}}) {
 			(my $innerPath = $request[1]) =~ s/\/$moduleName//; #delete module name from request path
-			my $return;
+			my $return = '';
 			eval {
+				Log("calling handleRequest in module $moduleName");
 				$return = $moduleName->handleRequest($client, $request[0], $innerPath, $requestBody);
+				Log("execution successfull");
 				1;
+			} or do {
+				Log("exception: $@");
 			};
 
-			if (!$@ && $return eq "OK") {
-				print color("green");
-				print "200 $moduleName: success\n";
-				print color("reset");
+			if ($return eq "OK") {
+				Log("200 $moduleName: success", "green");
 			} else {
-				print color("red");
-				print "404 $moduleName: $return\n";
-				print "exception: $@\n";
-				print color("reset");
+				Log("404 $moduleName: $return", "red");
 
 				print $client "HTTP/1.1 404 ERROR\r\n\r\n<h1>404 $return</h1>";
-            }
+			}
 		}
 	} else {
-		print color("red");
-		print "404 $moduleName: module not found\n";
-		print color("reset");
+		Log("404 $moduleName: module not found", "red");
 
 		print $client "HTTP/1.1 404 ERROR\r\n\r\n<h1>404 module not found</h1>";
-		}
+	}
 } continue {
 	close $client;
-	print "connection closed\n";
+	undef $clientAddr;
+	Log("connection closed", "cyan");
 }
