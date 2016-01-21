@@ -100,7 +100,7 @@ while ($clientAddr = accept($client, SOCK)) {
         next;
     }
 
-	#default request a.k.a. no-route should be 404 (filter strangers/intruders)
+	#default request a.k.a. no-route, should be 404 (filter strangers/intruders)
     if ($path eq "/") {
         print color("green");
         print "200 Request served without error\n";
@@ -130,15 +130,20 @@ while ($clientAddr = accept($client, SOCK)) {
 		#handle request
         if (exists $INC{$servers{$moduleName}}) {
             (my $innerPath = $request[1]) =~ s/\/$moduleName//; #delete module name from request path
-            my $return = $moduleName->handleRequest($client, $request[0], $innerPath, $requestBody);
+			my $return;
+			eval {
+				$return = $moduleName->handleRequest($client, $request[0], $innerPath, $requestBody);
+				1;
+			};
 
-            if ($return eq "OK") { 
+            if (!$@ && $return eq "OK") { 
                 print color("green");
                 print "200 $moduleName: success\n";
                 print color("reset");
             } else {
                 print color("red");
                 print "404 $moduleName: $return\n";
+				print "exception: $@\n";
                 print color("reset");
 
                 print $client "HTTP/1.1 404 ERROR\r\n\r\n<h1>404 $return</h1>";
