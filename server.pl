@@ -71,92 +71,92 @@ foreach my $dir (@dirs) {
 print "\n";
 
 #create socket
-socket(SOCK, PF_INET, SOCK_STREAM, $protocol) 
-    or die "couldn't open a socket: $!";
+socket(SOCK, PF_INET, SOCK_STREAM, $protocol)
+	or die "couldn't open a socket: $!";
 
-setsockopt(SOCK, SOL_SOCKET, SO_REUSEADDR, 1) 
-    or die "couldn't set socket options: $!";
+setsockopt(SOCK, SOL_SOCKET, SO_REUSEADDR, 1)
+	or die "couldn't set socket options: $!";
 
-bind(SOCK, sockaddr_in($port, INADDR_ANY)) 
-    or die "couldn't bind socket to port $port: $!";
+bind(SOCK, sockaddr_in($port, INADDR_ANY))
+	or die "couldn't bind socket to port $port: $!";
 
-listen(SOCK, SOMAXCONN) 
-    or die "couldn't listen to port $port: $!";
+listen(SOCK, SOMAXCONN)
+	or die "couldn't listen to port $port: $!";
 
 print "server ready, listening on port $port\n";
 
 my $client;
 my $clientAddr;
 while ($clientAddr = accept($client, SOCK)) {
-    my ($port, $addr) = sockaddr_in($clientAddr);
-    $addr = inet_ntoa($addr);
-    print "\n---------------------------------\nConnection accepted from $addr:$port\n";
-    my @request = split(" ", scalar <$client>);
+	my ($port, $addr) = sockaddr_in($clientAddr);
+	$addr = inet_ntoa($addr);
+	print "\n---------------------------------\nConnection accepted from $addr:$port\n";
+	my @request = split(" ", scalar <$client>);
 	my $requestBody = getRequestBody($client);
-    my $path = $request[1];
-    print "request recieved: @request\n";
+	my $path = $request[1];
+	print "request recieved: @request\n";
 	print "request body: $requestBody\n";
-    if (@request == 0) {
-        next;
-    }
+	if (@request == 0) {
+		next;
+	}
 
 	#default request a.k.a. no-route, should be 404 (filter strangers/intruders)
-    if ($path eq "/") {
-        print color("green");
-        print "200 Request served without error\n";
-        print color("reset");
-        print $client "HTTP/1.1 404 RESOURCE NOT FOUND\r\n\r\n<html><body><h1>404 page not found</h1></body></html>\r\n";
-        next;
-    } 
+	if ($path eq "/") {
+		print color("green");
+		print "200 Request served without error\n";
+		print color("reset");
+		print $client "HTTP/1.1 404 RESOURCE NOT FOUND\r\n\r\n<html><body><h1>404 page not found</h1></body></html>\r\n";
+		next;
+	} 
 
-    my @path = split("/", $path);
-    my $moduleName = $path[1];
+	my @path = split("/", $path);
+	my $moduleName = $path[1];
 	#check for module existance
-    if (exists($servers{$moduleName})) {
+	if (exists($servers{$moduleName})) {
 
 		#is module already loaded?
-        if (!exists $INC{$servers{$moduleName}}) {
-            eval {
-                require $servers{$moduleName};
-                $moduleName->import();
-                $moduleName->init();
-                1;
-            } or do {
-                print "unable to import module: $@\n";
-                print $client "HTTP/1.1 404 ERROR\r\n\r\n<h1>UNABLE TO LOAD MODULE $moduleName</h1><h2>$@</h2>";
-            };
-        }
+		if (!exists $INC{$servers{$moduleName}}) {
+			eval {
+				require $servers{$moduleName};
+				$moduleName->import();
+				$moduleName->init();
+				1;
+			} or do {
+				print "unable to import module: $@\n";
+				print $client "HTTP/1.1 404 ERROR\r\n\r\n<h1>UNABLE TO LOAD MODULE $moduleName</h1><h2>$@</h2>";
+			};
+		}
 
 		#handle request
-        if (exists $INC{$servers{$moduleName}}) {
-            (my $innerPath = $request[1]) =~ s/\/$moduleName//; #delete module name from request path
+		if (exists $INC{$servers{$moduleName}}) {
+			(my $innerPath = $request[1]) =~ s/\/$moduleName//; #delete module name from request path
 			my $return;
 			eval {
 				$return = $moduleName->handleRequest($client, $request[0], $innerPath, $requestBody);
 				1;
 			};
 
-            if (!$@ && $return eq "OK") { 
-                print color("green");
-                print "200 $moduleName: success\n";
-                print color("reset");
-            } else {
-                print color("red");
-                print "404 $moduleName: $return\n";
+			if (!$@ && $return eq "OK") {
+				print color("green");
+				print "200 $moduleName: success\n";
+				print color("reset");
+			} else {
+				print color("red");
+				print "404 $moduleName: $return\n";
 				print "exception: $@\n";
-                print color("reset");
+				print color("reset");
 
-                print $client "HTTP/1.1 404 ERROR\r\n\r\n<h1>404 $return</h1>";
+				print $client "HTTP/1.1 404 ERROR\r\n\r\n<h1>404 $return</h1>";
             }
-        }
-    } else {
-        print color("red");
-        print "404 $moduleName: module not found\n";
-        print color("reset");
+		}
+	} else {
+		print color("red");
+		print "404 $moduleName: module not found\n";
+		print color("reset");
 
-        print $client "HTTP/1.1 404 ERROR\r\n\r\n<h1>404 module not found</h1>";
-    }       
+		print $client "HTTP/1.1 404 ERROR\r\n\r\n<h1>404 module not found</h1>";
+		}
 } continue {
-    close $client;
-    print "connection closed\n";
+	close $client;
+	print "connection closed\n";
 }
