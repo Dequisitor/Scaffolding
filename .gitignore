@@ -1,4 +1,5 @@
 *
 
 !.gitignore
-!server.pl
+!server.coffee
+!package.json
