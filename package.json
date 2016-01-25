@@ -1,11 +1,12 @@
 {
-  "name": "scaffolding",
-  "version": "0.0.1",
-  "description": "yes/no",
-  "dependencies": {
-    "coffee-script": "^1.10.0",
-    "express": "*",
-    "morgan": "*",
-	"body-parser": "*"
-  }
+	"name": "scaffolding",
+	"version": "0.0.1",
+	"description": "yes/no",
+	"dependencies": {
+		"coffee-script": "^1.10.0",
+		"express": "*",
+		"morgan": "*",
+		"body-parser": "*",
+		"chalk": "*"
+	}
 }
