@@ -20,7 +20,7 @@ for dir in dirs when fs.statSync(dir).isDirectory()
 console.log ''
 for module in modules
 	app.use '/'+module.name, module.module
-	console.log(chalk.yellow 'registered module ' + module_name + ' under /' + module_name)
+	console.log(chalk.yellow 'registered module ' + module.name + ' under /' + module.name)
 
 app.listen 3000, ->
 	console.log ''
