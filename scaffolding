@@ -11,25 +11,48 @@
 ### END INIT INFO
 
 DIR=/home/pi/programs/nodejs/Scaffolding
-DAEMON=wrapper.sh
+DAEMON=server.coffee
 DAEMON_NAME=scaffolding
-DAEMON_USER=pi
 PIDFILE=/var/run/$DAEMON_NAME.pid
+LOGFILE=/var/log/$DAEMON_NAME.log
 
-. /lib/lsb/init-functions
+init() {
+	rm $DIR/error.log
+}
+
+checkExecution() {
+	if [ $? -eq 0 ]; then
+		echo 'OK'
+	else
+		echo 'FAIL'
+	fi
+}
 
 do_start() {
-	log_daemon_msg "Starting service $DAEMON_NAME"
-	start-stop-daemon --start --background --pidfile $PIDFILE --make-pidfile --chdir $DIR --user $DAEMON_USER --startas $DAEMON
-	log_end_msg $?
+	echo "Starting $DAEMON_NAME service ..."
+	echo -n "... Changing work directory ... "
+	cd $DIR
+	checkExecution
+
+	echo -n "... Starting server ... "
+	./$DAEMON > $LOGFILE &
+	checkExecution
+
+	echo -n "... Server started with PID: "
+	echo $! > $PIDFILE
+	echo "$!"
 }
 
 do_stop() {
-	log_daemon_msg "Stopping service $DAEMON_NAME"
-	start-stop-daemon --stop --pidfile $PIDFILE --retry 10
-	log_end_msg $?
+	echo "Stopping $DAEMON_NAME service ..."
+	echo -n "... killing process with PID: "
+	APP_PID=$(<$PIDFILE)
+	echo -n '$APP_PID '
+	kill $APP_PID
+	checkExecution
 }
 
+init
 case $1 in
 	start)
 		do_start
@@ -38,15 +61,41 @@ case $1 in
 		do_stop
 		;;
 	status)
-		status_of_proc -p "$PIDFILE" "$DAEMON_NAME" "$DAEMON" && exit 0 || exit $?
 		;;
 	restart)
 		do_stop
 		do_start
 		;;
+	install)
+		echo "installing $DAEMON_NAME service ... "
+		echo -n "... creating symlink ... "
+		ln -s $DIR/$DAEMON_NAME /etc/init.d/$DAEMON_NAME 2>> $DIR/error.log
+		checkExecution
+
+		echo -n "... updating rc ... "
+		update-rc.d $DAEMON_NAME defaults 2>> $DIR/error.log
+		checkExecution
+		;;
+	uninstall|remove)
+		echo "removing $DAEMON_NAME service ... "
+		echo -n "... removing rc ... "
+		update-rc.d $DAEMON_NAME remove 2>> $DIR/error.log
+		checkExecution
+
+		echo -n "... removing symlink ... "
+		rm /etc/init.d/$DAEMON_NAME 2>> $DIR/error.log
+		checkExecution
+		;;
 	*)
-		echo 'Usage: service scaffolding start|stop|restart|status'
+		echo 'Usage: service scaffolding start|stop|restart|status|install|remove|uninstall'
+		echo 'install/remove requires admin rights'
 		;;
 esac
+
+if [ -s "error.log" ]; then
+	echo "Execution finished with errors, please check error.log file"
+else
+	echo "Execution finished successfully"
+fi
 
 exit 0
