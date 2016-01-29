@@ -17,38 +17,37 @@ PIDFILE=/var/run/$DAEMON_NAME.pid
 LOGFILE=/var/log/$DAEMON_NAME.log
 
 init() {
-	rm $DIR/error.log
+	rm $DIR/error.log 2> /dev/null
 }
 
 checkExecution() {
 	if [ $? -eq 0 ]; then
-		echo 'OK'
+		printf 'OK\n'
 	else
-		echo 'FAIL'
+		printf 'FAIL\n'
 	fi
 }
 
 do_start() {
-	echo "Starting $DAEMON_NAME service ..."
-	echo -n "... Changing work directory ... "
-	cd $DIR
+	printf "Starting %s service ...\n" $DAEMON_NAME
+	printf "... Changing work directory ... "
+	cd $DIR 2>> $DIR/error.log
 	checkExecution
 
-	echo -n "... Starting server ... "
+	printf "... Starting server ... "
 	./$DAEMON > $LOGFILE &
 	checkExecution
 
-	echo -n "... Server started with PID: "
-	echo $! > $PIDFILE
-	echo "$!"
+	printf "... Server started with PID: "
+	printf $! > $PIDFILE
+	printf "%d\n" $!
 }
 
 do_stop() {
-	echo "Stopping $DAEMON_NAME service ..."
-	echo -n "... killing process with PID: "
+	printf "Stopping %s service ...\n" $DAEMON_NAME
 	APP_PID=$(<$PIDFILE)
-	echo -n '$APP_PID '
-	kill $APP_PID
+	printf "... killing process with PID: %d ... " $APP_PID
+	kill $APP_PID 2>> $DIR/error.log
 	checkExecution
 }
 
@@ -67,35 +66,35 @@ case $1 in
 		do_start
 		;;
 	install)
-		echo "installing $DAEMON_NAME service ... "
-		echo -n "... creating symlink ... "
+		printf "installing $DAEMON_NAME service ... \n"
+		printf "... creating symlink ... "
 		ln -s $DIR/$DAEMON_NAME /etc/init.d/$DAEMON_NAME 2>> $DIR/error.log
 		checkExecution
 
-		echo -n "... updating rc ... "
+		printf "... updating rc ... "
 		update-rc.d $DAEMON_NAME defaults 2>> $DIR/error.log
 		checkExecution
 		;;
 	uninstall|remove)
-		echo "removing $DAEMON_NAME service ... "
-		echo -n "... removing rc ... "
+		printf "removing $DAEMON_NAME service ... \n"
+		printf "... removing rc ... "
 		update-rc.d $DAEMON_NAME remove 2>> $DIR/error.log
 		checkExecution
 
-		echo -n "... removing symlink ... "
+		printf "... removing symlink ... "
 		rm /etc/init.d/$DAEMON_NAME 2>> $DIR/error.log
 		checkExecution
 		;;
 	*)
-		echo 'Usage: service scaffolding start|stop|restart|status|install|remove|uninstall'
-		echo 'install/remove requires admin rights'
+		printf 'Usage: service scaffolding start|stop|restart|status|install|remove|uninstall\n'
+		printf 'install/remove requires admin rights\n'
 		;;
 esac
 
 if [ -s "error.log" ]; then
-	echo "Execution finished with errors, please check error.log file"
+	printf "Execution finished with errors, please check error.log file\n"
 else
-	echo "Execution finished successfully"
+	printf "Execution finished successfully\n"
 fi
 
 exit 0
