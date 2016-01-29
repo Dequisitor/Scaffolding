@@ -1,3 +1,5 @@
+#!/usr/local/bin/coffee
+
 express = require 'express'
 app = express()
 morgan = require 'morgan'
