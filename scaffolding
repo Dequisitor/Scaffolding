@@ -4,8 +4,8 @@
 # Provides:          scaffolding
 # Required-Start:    $syslog $network $named $time $local_fs
 # Required-Stop:     $syslog $network $named $time $local_fs
-# Default-Start:     5
-# Default-Stop:      6
+# Default-Start:     3 4 5
+# Default-Stop:      5 6
 # Short-Description: scaffolding server for nodejs applications
 # Description:       It is what it says one line above
 ### END INIT INFO
