@@ -16,37 +16,43 @@ DAEMON_NAME=scaffolding
 PIDFILE=/var/run/$DAEMON_NAME.pid
 LOGFILE=/var/log/$DAEMON_NAME.log
 
+#colors
+red=$(tput setaf 1)
+green=$(tput setaf 2)
+yellow=$(tput setaf 3)
+normal=$(tput sgr0)
+
 init() {
 	rm $DIR/error.log 2> /dev/null
 }
 
 checkExecution() {
 	if [ $? -eq 0 ]; then
-		printf 'OK\n'
+		printf "[ %s ]\n" "${green}OK${normal}"
 	else
-		printf 'FAIL\n'
+		printf "[ %s ]\n" "${red}FAIL${normal}"
 	fi
 }
 
 do_start() {
-	printf "Starting %s service ...\n" $DAEMON_NAME
-	printf "... Changing work directory ... "
+	printf "Starting ${blue}$DAEMON_NAME${normal} service ...\n" $DAEMON_NAME
+	printf "%-80s" "... Changing work directory ... "
 	cd $DIR 2>> $DIR/error.log
 	checkExecution
 
-	printf "... Starting server ... "
+	printf "%-80s" "... Starting server ... "
 	./$DAEMON > $LOGFILE &
 	checkExecution
 
-	printf "... Server started with PID: "
+	printf "... Server started with ${yellow}PID: "
 	printf $! > $PIDFILE
-	printf "%d\n" $!
+	printf "%s${normal}\n" "$!"
 }
 
 do_stop() {
-	printf "Stopping %s service ...\n" $DAEMON_NAME
+	printf "Stopping ${blue}$DAEMON_NAME${normal} service ...\n"
 	APP_PID=$(<$PIDFILE)
-	printf "... killing process with PID: %d ... " $APP_PID
+	printf "%-80s" "... killing process with ${yellow}PID: $APP_PID${normal} ... "
 	kill $APP_PID 2>> $DIR/error.log
 	checkExecution
 }
@@ -60,7 +66,12 @@ get_status() {
 init
 case $1 in
 	start)
-		do_start
+		PS=$(get_status)
+		if [ -n "$PS" ]; then
+			printf "Service ${blue}$DAEMON_NAME${normal} is already running.\n"
+		else
+			do_start
+		fi
 		;;
 	stop)
 		do_stop
@@ -68,9 +79,9 @@ case $1 in
 	status)
 		PS=$(get_status)
 		if [ -z "$PS" ]; then
-			printf "Service $DAEMON_NAME is not running.\n"
+			printf "Service ${blue}$DAEMON_NAME${normal} is not running.\n"
 		else
-			printf "Service $DAEMON_NAME is running.\n"
+			printf "Service ${blue}$DAEMON_NAME${normal} is running.\n"
 		fi
 		;;
 	restart)
@@ -80,30 +91,30 @@ case $1 in
 	install)
 		PS=$(get_status)
 		if [ -n "$PS" ]; then
-			printf "Service $DAEMON_NAME is running, stopping server.\n"
+			printf "Service ${blue}$DAEMON_NAME${normal} is running, stopping server.\n"
 			do_stop
 		fi
-		printf "installing $DAEMON_NAME service ... \n"
-		printf "... creating symlink ... "
+		printf "installing ${blue}$DAEMON_NAME${normal} service ... \n"
+		printf "%-80s" "... creating symlink ... "
 		ln -s $DIR/$DAEMON_NAME /etc/init.d/$DAEMON_NAME 2>> $DIR/error.log
 		checkExecution
 
-		printf "... updating rc ... "
+		printf "%-80s" "... updating rc ... "
 		update-rc.d $DAEMON_NAME defaults 2>> $DIR/error.log
 		checkExecution
 		;;
 	uninstall|remove)
 		PS=$(get_status)
 		if [ -n "$PS" ]; then
-			printf "Service $DAEMON_NAME is running, stopping server."
+			printf "Service ${blue}$DAEMON_NAME${normal} is running, stopping server.\n"
 			do_stop
 		fi
-		printf "removing $DAEMON_NAME service ... \n"
-		printf "... removing rc ... "
+		printf "removing ${blue}$DAEMON_NAME${normal} service ... \n"
+		printf "%-80s" "... removing rc ... "
 		update-rc.d $DAEMON_NAME remove 2>> $DIR/error.log
 		checkExecution
 
-		printf "... removing symlink ... "
+		printf "%-80s" "... removing symlink ... "
 		rm /etc/init.d/$DAEMON_NAME 2>> $DIR/error.log
 		checkExecution
 		;;
@@ -113,8 +124,9 @@ case $1 in
 		;;
 esac
 
+printf "\n"
 if [ -s "error.log" ]; then
-	printf "Execution finished with errors:\n"
+	printf "Execution finished ${red}with errors${normal}:\n"
 	cat error.log
 else
 	printf "Execution finished successfully\n"
