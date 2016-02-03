@@ -51,6 +51,12 @@ do_stop() {
 	checkExecution
 }
 
+get_status() {
+	APP_PID=$(<$PIDFILE)
+	local PS=`ps cax | grep $APP_PID`
+	echo "$PS"
+}
+
 init
 case $1 in
 	start)
@@ -60,6 +66,12 @@ case $1 in
 		do_stop
 		;;
 	status)
+		PS=$(get_status)
+		if [ -z "$PS" ]; then
+			printf "Service $DAEMON_NAME is not running.\n"
+		else
+			printf "Service $DAEMON_NAME is running.\n"
+		fi
 		;;
 	restart)
 		do_stop
