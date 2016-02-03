@@ -78,6 +78,11 @@ case $1 in
 		do_start
 		;;
 	install)
+		PS=$(get_status)
+		if [ -n "$PS" ]; then
+			printf "Service $DAEMON_NAME is running, stopping server.\n"
+			do_stop
+		fi
 		printf "installing $DAEMON_NAME service ... \n"
 		printf "... creating symlink ... "
 		ln -s $DIR/$DAEMON_NAME /etc/init.d/$DAEMON_NAME 2>> $DIR/error.log
@@ -88,6 +93,11 @@ case $1 in
 		checkExecution
 		;;
 	uninstall|remove)
+		PS=$(get_status)
+		if [ -n "$PS" ]; then
+			printf "Service $DAEMON_NAME is running, stopping server."
+			do_stop
+		fi
 		printf "removing $DAEMON_NAME service ... \n"
 		printf "... removing rc ... "
 		update-rc.d $DAEMON_NAME remove 2>> $DIR/error.log
@@ -104,7 +114,8 @@ case $1 in
 esac
 
 if [ -s "error.log" ]; then
-	printf "Execution finished with errors, please check error.log file\n"
+	printf "Execution finished with errors:\n"
+	cat error.log
 else
 	printf "Execution finished successfully\n"
 fi
