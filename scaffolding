@@ -51,37 +51,72 @@ do_start() {
 
 do_stop() {
 	printf "Stopping ${blue}$DAEMON_NAME${normal} service ...\n"
-	APP_PID=$(<$PIDFILE)
-	printf "%-80s" "... killing process with ${yellow}PID: $APP_PID${normal} ... "
-	kill $APP_PID 2>> $DIR/error.log
-	checkExecution
+	if [ -f "$PIDFILE" ]; then
+		APP_PID=$(<$PIDFILE)
+		printf "%-80s" "... killing process with ${yellow}PID: $APP_PID${normal}"
+		kill $APP_PID 2>> $DIR/error.log
+		checkExecution
+	else
+		printf "Can not find PID file. Service is not running or startup failed."
+	fi
 }
 
-get_status() {
-	APP_PID=$(<$PIDFILE)
-	local PS=`ps cax | grep $APP_PID`
-	echo "$PS"
+is_running() {
+	local RUNNING=""
+	if [ -f "$PIDFILE" ]; then
+		APP_PID=$(<$PIDFILE)
+		RUNNING=`ps cax | grep $APP_PID`
+	fi
+
+	echo "$RUNNING" #empty if not running, not empty if running
 }
+
+is_installed() {
+	local RES=""
+	if [ -f "/etc/init.d/$DAEMON_NAME" ]; then
+		RES="installed"
+	fi
+
+	echo "$RES" #empty if not installed, not empty if installed
+}
+
+INSTALLED=$(is_installed)
+RUNNING=$(is_running)
 
 init
 case $1 in
 	start)
-		PS=$(get_status)
-		if [ -n "$PS" ]; then
-			printf "Service ${blue}$DAEMON_NAME${normal} is already running.\n"
+		if [ -n "$INSTALLED" ]; then
+			if [ -n "$RUNNING" ]; then
+				printf "Service ${blue}$DAEMON_NAME${normal} is already running.\n"
+			else
+				do_start
+			fi
 		else
-			do_start
+			printf "Service ${blue}$DAEMON_NAME${normal} is not installed.\n"
 		fi
 		;;
 	stop)
-		do_stop
+		if [ -n "$INSTALLED" ]; then
+			if [ -n "$RUNNING" ]; then
+				do_stop
+			else
+				printf "Service ${blue}$DAEMON_NAME${normal} is not running.\n"
+			fi
+		else
+			printf "Service ${blue}$DAEMON_NAME${normal} is not installed.\n"
+		fi
 		;;
 	status)
-		PS=$(get_status)
-		if [ -z "$PS" ]; then
-			printf "Service ${blue}$DAEMON_NAME${normal} is not running.\n"
+		if [ -n "$INSTALLED" ]; then
+			printf "Service ${blue}$DAEMON_NAME${normal} is installed.\n"
+			if [ -n "$RUNNING" ]; then
+				printf "Service ${blue}$DAEMON_NAME${normal} is not running.\n"
+			else
+				printf "Service ${blue}$DAEMON_NAME${normal} is not running.\n"
+			fi
 		else
-			printf "Service ${blue}$DAEMON_NAME${normal} is running.\n"
+			printf "Service ${blue}$DAEMON_NAME${normal} is not installed.\n"
 		fi
 		;;
 	restart)
@@ -89,34 +124,37 @@ case $1 in
 		do_start
 		;;
 	install)
-		PS=$(get_status)
-		if [ -n "$PS" ]; then
-			printf "Service ${blue}$DAEMON_NAME${normal} is running, stopping server.\n"
-			do_stop
-		fi
-		printf "installing ${blue}$DAEMON_NAME${normal} service ... \n"
-		printf "%-80s" "... creating symlink ... "
-		ln -s $DIR/$DAEMON_NAME /etc/init.d/$DAEMON_NAME 2>> $DIR/error.log
-		checkExecution
+		if [ -n "$INSTALLED" ]; then
+			printf "Service ${blue}$DAEMON_NAME${normal} is already installed.\n"
+		else
+			printf "installing ${blue}$DAEMON_NAME${normal} service ... \n"
+			printf "%-80s" "... creating symlink ... "
+			ln -s $DIR/$DAEMON_NAME /etc/init.d/$DAEMON_NAME 2>> $DIR/error.log
+			checkExecution
 
-		printf "%-80s" "... updating rc ... "
-		update-rc.d $DAEMON_NAME defaults 2>> $DIR/error.log
-		checkExecution
+			printf "%-80s" "... updating rc ... "
+			update-rc.d $DAEMON_NAME defaults 2>> $DIR/error.log
+			checkExecution
+		fi
 		;;
 	uninstall|remove)
-		PS=$(get_status)
-		if [ -n "$PS" ]; then
-			printf "Service ${blue}$DAEMON_NAME${normal} is running, stopping server.\n"
-			do_stop
-		fi
-		printf "removing ${blue}$DAEMON_NAME${normal} service ... \n"
-		printf "%-80s" "... removing rc ... "
-		update-rc.d $DAEMON_NAME remove 2>> $DIR/error.log
-		checkExecution
+		if [ -n "$INSTALLED" ]; then
+			if [ -n "$RUNNING" ]; then
+				printf "Service ${blue}$DAEMON_NAME${normal} is running. Stopping server.\n"
+				do_stop
+			fi
 
-		printf "%-80s" "... removing symlink ... "
-		rm /etc/init.d/$DAEMON_NAME 2>> $DIR/error.log
-		checkExecution
+			printf "removing ${blue}$DAEMON_NAME${normal} service ... \n"
+			printf "%-80s" "... removing rc ... "
+			update-rc.d $DAEMON_NAME remove 2>> $DIR/error.log
+			checkExecution
+
+			printf "%-80s" "... removing symlink ... "
+			rm /etc/init.d/$DAEMON_NAME 2>> $DIR/error.log
+			checkExecution
+		else
+			printf "Service ${blue}$DAEMON_NAME${normal} is not installed.\n"
+		fi
 		;;
 	*)
 		printf 'Usage: service scaffolding start|stop|restart|status|install|remove|uninstall\n'
@@ -128,8 +166,6 @@ printf "\n"
 if [ -s "error.log" ]; then
 	printf "Execution finished ${red}with errors${normal}:\n"
 	cat error.log
-else
-	printf "Execution finished successfully\n"
 fi
 
 exit 0
