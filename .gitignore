@@ -3,5 +3,5 @@
 !.gitignore
 !server.coffee
 !package.json
-!wrapper.sh
 !scaffolding
+!README.md
